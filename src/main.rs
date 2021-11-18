@@ -118,6 +118,12 @@ fn rotate_files() {
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::builder().format_timestamp_nanos().init();
 
+    let log_directory_option = std::env::args().nth(1);
+    if let Some(log_directory) = log_directory_option {
+        debug!("change to log_directory = {}", log_directory);
+        std::env::set_current_dir(log_directory)?;
+    }
+
     let stdin = std::io::stdin();
     let mut line = String::new();
     let mut output_file_size: usize = initial_output_file_size();
@@ -147,4 +153,3 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 }
-
