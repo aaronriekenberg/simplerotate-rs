@@ -68,19 +68,20 @@ impl SimpleRotate {
             return Vec::new();
         }
 
+        let build_file_name = |file_index: usize| -> String {
+            match file_index {
+                0 => output_file_name.to_string(),
+                _ => format!("{}.{}", output_file_name, file_index),
+            }
+        };
+
         let mut list = Vec::with_capacity(max_output_files - 1);
 
         let mut i = max_output_files - 1;
 
         while i > 0 {
-            let from_filename = match i - 1 {
-                0 => output_file_name.to_string(),
-                _ => format!("{}.{}", output_file_name, i - 1),
-            };
-            let to_filename = match i {
-                0 => output_file_name.to_string(),
-                _ => format!("{}.{}", output_file_name, i),
-            };
+            let from_filename = build_file_name(i - 1);
+            let to_filename = build_file_name(i);
 
             list.push(RotationInfo {
                 from_filename,
