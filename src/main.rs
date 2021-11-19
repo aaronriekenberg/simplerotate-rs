@@ -130,8 +130,8 @@ impl SimpleRotate {
     fn run(&self) -> std::io::Result<()> {
         let stdin = std::io::stdin();
         let mut line = String::new();
-        let mut output_file_size: usize = self.initial_output_file_size();
-        let mut output_file: File = self.open_output_file_append()?;
+        let mut output_file_size = self.initial_output_file_size();
+        let mut output_file = self.open_output_file_append()?;
         debug!("initial output_file_size = {}", output_file_size);
 
         loop {
