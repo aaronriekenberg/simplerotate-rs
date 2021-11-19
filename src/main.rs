@@ -4,7 +4,22 @@ use std::{
     convert::TryFrom,
     fs::{File, OpenOptions},
     io::Write,
+    os::unix::io::AsRawFd,
 };
+
+fn flock_exclusive(file: &File) -> std::io::Result<()> {
+    let raw_fd = file.as_raw_fd();
+
+    debug!("before flock_exclusive raw_fd = {}", raw_fd);
+    let ret = unsafe { libc::flock(raw_fd, libc::LOCK_EX) };
+    debug!("after flock_exclusive ret = {}", ret);
+
+    if ret < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 struct RotationInfo {
@@ -23,18 +38,25 @@ impl RotationInfo {
 }
 
 struct SimpleRotate {
+    lock_file_name: String,
     max_file_size_bytes: usize,
     output_file_name: String,
     rotation_info_list: Vec<RotationInfo>,
 }
 
 impl SimpleRotate {
-    fn new(max_file_size_bytes: usize, output_file_name: &str, max_output_files: usize) -> Self {
+    fn new(
+        lock_file_name: &str,
+        max_file_size_bytes: usize,
+        output_file_name: &str,
+        max_output_files: usize,
+    ) -> Self {
         let rotation_info_list =
             SimpleRotate::rotation_info_list(output_file_name, max_output_files);
         debug!("rotation_info_list = {:?}", rotation_info_list);
 
         Self {
+            lock_file_name: lock_file_name.to_string(),
             max_file_size_bytes,
             output_file_name: output_file_name.to_string(),
             rotation_info_list,
@@ -69,6 +91,20 @@ impl SimpleRotate {
         }
 
         list
+    }
+
+    fn acquire_lock_file(&self) -> std::io::Result<File> {
+        debug!("begin acquire_lock_file");
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.lock_file_name)?;
+
+        flock_exclusive(&file)?;
+
+        debug!("end acquire_lock_file");
+
+        Ok(file)
     }
 
     fn initial_output_file_size(&self) -> usize {
@@ -124,6 +160,8 @@ impl SimpleRotate {
     }
 
     fn run(&self) -> std::io::Result<()> {
+        let _lock_file = self.acquire_lock_file();
+
         let stdin = std::io::stdin();
         let mut line = String::new();
         let mut output_file_size = self.initial_output_file_size();
@@ -160,11 +198,17 @@ fn main() -> std::io::Result<()> {
         std::env::set_current_dir(log_directory)?;
     }
 
+    let lock_file_name = "lock";
     let max_file_size_bytes = 1 * 1024 * 1024;
     let output_file_name = "output";
     let max_output_files = 10;
 
-    let simple_rotate = SimpleRotate::new(max_file_size_bytes, output_file_name, max_output_files);
+    let simple_rotate = SimpleRotate::new(
+        lock_file_name,
+        max_file_size_bytes,
+        output_file_name,
+        max_output_files,
+    );
     simple_rotate.run()?;
 
     Ok(())
