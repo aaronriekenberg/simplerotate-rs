@@ -10,9 +10,9 @@ use std::{
 fn flock_exclusive(file: &File) -> std::io::Result<()> {
     let raw_fd = file.as_raw_fd();
 
-    debug!("before flock_exclusive raw_fd = {}", raw_fd);
+    debug!("before libc::flock raw_fd = {}", raw_fd);
     let ret = unsafe { libc::flock(raw_fd, libc::LOCK_EX) };
-    debug!("after flock_exclusive ret = {}", ret);
+    debug!("after libc::flock ret = {}", ret);
 
     if ret < 0 {
         Err(std::io::Error::last_os_error())
