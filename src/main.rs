@@ -50,11 +50,7 @@ impl SimpleRotate {
 
         let mut i = max_output_files - 1;
 
-        loop {
-            if i == 0 {
-                break;
-            }
-
+        while i > 0 {
             let from_filename = match i - 1 {
                 0 => output_file_name.to_string(),
                 _ => format!("{}.{}", output_file_name, i - 1),
