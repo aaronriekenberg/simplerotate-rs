@@ -2,49 +2,9 @@ use log::debug;
 
 use std::{
     convert::TryFrom,
-    error::Error,
     fs::{File, OpenOptions},
     io::Write,
 };
-
-const MAX_FILE_SIZE_BYTES: usize = 1 * 1024 * 1024;
-
-static OUTPUT_FILE_NAME: &str = "output";
-
-const MAX_OUTPUT_FILES: usize = 10;
-
-fn initial_output_file_size() -> usize {
-    let u64_size = match std::fs::metadata(OUTPUT_FILE_NAME) {
-        Ok(m) => m.len(),
-        Err(_) => 0,
-    };
-
-    match usize::try_from(u64_size) {
-        Ok(size) => size,
-        Err(e) => {
-            debug!(
-                "initial_output_file_size: error converting from u64 to usize e = {} u64_size = {}",
-                e, u64_size
-            );
-            0
-        }
-    }
-}
-
-fn open_output_file_append() -> std::io::Result<File> {
-    OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(OUTPUT_FILE_NAME)
-}
-
-fn open_output_file_truncate() -> std::io::Result<File> {
-    OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(OUTPUT_FILE_NAME)
-}
 
 #[derive(Debug)]
 struct RotationInfo {
@@ -62,60 +22,140 @@ impl RotationInfo {
     }
 }
 
-fn rotation_info_list() -> Vec<RotationInfo> {
-    if MAX_OUTPUT_FILES <= 1 {
-        return Vec::new();
-    }
-
-    let mut list = Vec::with_capacity(MAX_OUTPUT_FILES - 1);
-
-    let mut i = MAX_OUTPUT_FILES - 1;
-
-    loop {
-        if i == 0 {
-            break;
-        }
-
-        let from_filename = match i - 1 {
-            0 => OUTPUT_FILE_NAME.to_string(),
-            _ => format!("{}.{}", OUTPUT_FILE_NAME, i - 1),
-        };
-        let to_filename = match i {
-            0 => OUTPUT_FILE_NAME.to_string(),
-            _ => format!("{}.{}", OUTPUT_FILE_NAME, i),
-        };
-
-        list.push(RotationInfo {
-            from_filename,
-            to_filename,
-        });
-
-        i -= 1;
-    }
-
-    list
+struct SimpleRotate {
+    max_file_size_bytes: usize,
+    output_file_name: String,
+    rotation_info_list: Vec<RotationInfo>,
 }
 
-fn rotate_files() {
-    debug!("rotate_files");
+impl SimpleRotate {
+    fn new(max_file_size_bytes: usize, output_file_name: &str, max_output_files: usize) -> Self {
+        let rotation_info_list =
+            SimpleRotate::rotation_info_list(output_file_name, max_output_files);
+        debug!("rotation_info_list = {:?}", rotation_info_list);
 
-    for rotation_info in rotation_info_list() {
-        debug!("calling rename rotation_info = {:?}", rotation_info);
-        match std::fs::rename(rotation_info.from_filename(), rotation_info.to_filename()) {
-            Ok(()) => {
-                debug!("rename success {:?}", rotation_info);
+        Self {
+            max_file_size_bytes,
+            output_file_name: output_file_name.to_string(),
+            rotation_info_list,
+        }
+    }
+
+    fn rotation_info_list(output_file_name: &str, max_output_files: usize) -> Vec<RotationInfo> {
+        if max_output_files <= 1 {
+            return Vec::new();
+        }
+
+        let mut list = Vec::with_capacity(max_output_files - 1);
+
+        let mut i = max_output_files - 1;
+
+        loop {
+            if i == 0 {
+                break;
             }
+
+            let from_filename = match i - 1 {
+                0 => output_file_name.to_string(),
+                _ => format!("{}.{}", output_file_name, i - 1),
+            };
+            let to_filename = match i {
+                0 => output_file_name.to_string(),
+                _ => format!("{}.{}", output_file_name, i),
+            };
+
+            list.push(RotationInfo {
+                from_filename,
+                to_filename,
+            });
+
+            i -= 1;
+        }
+
+        list
+    }
+
+    fn initial_output_file_size(&self) -> usize {
+        let u64_size = match std::fs::metadata(&self.output_file_name) {
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        };
+
+        match usize::try_from(u64_size) {
+            Ok(size) => size,
             Err(e) => {
                 debug!(
-                    "rename failed rotation_info = {:?} e = {}",
-                    rotation_info, e
+                    "initial_output_file_size: error converting from u64 to usize e = {} u64_size = {}", 
+                    e, u64_size
                 );
+                0
+            }
+        }
+    }
+
+    fn open_output_file_append(&self) -> std::io::Result<File> {
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.output_file_name)
+    }
+
+    fn open_output_file_truncate(&self) -> std::io::Result<File> {
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.output_file_name)
+    }
+
+    fn rotate_files(&self) {
+        debug!("rotate_files");
+
+        for rotation_info in &self.rotation_info_list {
+            debug!("calling rename rotation_info = {:?}", rotation_info);
+            match std::fs::rename(rotation_info.from_filename(), rotation_info.to_filename()) {
+                Ok(()) => {
+                    debug!("rename success {:?}", rotation_info);
+                }
+                Err(e) => {
+                    debug!(
+                        "rename failed rotation_info = {:?} e = {}",
+                        rotation_info, e
+                    );
+                }
+            }
+        }
+    }
+
+    fn run(&self) -> std::io::Result<()> {
+        let stdin = std::io::stdin();
+        let mut line = String::new();
+        let mut output_file_size: usize = self.initial_output_file_size();
+        let mut output_file: File = self.open_output_file_append()?;
+        debug!("initial output_file_size = {}", output_file_size);
+
+        loop {
+            line.clear();
+            let bytes_read = stdin.read_line(&mut line)?;
+            debug!("read_line bytes_read = {}", bytes_read);
+            if bytes_read == 0 {
+                debug!("bytes_read == 0 return from run");
+                return Ok(());
+            }
+
+            output_file.write_all(line.as_bytes())?;
+            output_file_size += bytes_read;
+            if output_file_size >= self.max_file_size_bytes {
+                std::mem::drop(output_file);
+                self.rotate_files();
+                output_file = self.open_output_file_truncate()?;
+                output_file_size = 0;
             }
         }
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> std::io::Result<()> {
     env_logger::builder().format_timestamp_nanos().init();
 
     let log_directory_option = std::env::args().nth(1);
@@ -124,32 +164,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::env::set_current_dir(log_directory)?;
     }
 
-    let stdin = std::io::stdin();
-    let mut line = String::new();
-    let mut output_file_size: usize = initial_output_file_size();
-    let mut output_file: File = open_output_file_append()?;
+    let max_file_size_bytes = 1 * 1024 * 1024;
+    let output_file_name = "output";
+    let max_output_files = 10;
 
-    debug!("initial output_file_size = {}", output_file_size);
+    let simple_rotate = SimpleRotate::new(max_file_size_bytes, output_file_name, max_output_files);
+    simple_rotate.run()?;
 
-    loop {
-        line.clear();
-        let bytes_read = stdin.read_line(&mut line)?;
-        debug!("read_line bytes_read = {}", bytes_read);
-
-        if bytes_read == 0 {
-            debug!("bytes_read == 0 return from main");
-            return Ok(());
-        }
-
-        output_file.write_all(line.as_bytes())?;
-
-        output_file_size += bytes_read;
-
-        if output_file_size >= MAX_FILE_SIZE_BYTES {
-            std::mem::drop(output_file);
-            rotate_files();
-            output_file = open_output_file_truncate()?;
-            output_file_size = 0;
-        }
-    }
+    Ok(())
 }
