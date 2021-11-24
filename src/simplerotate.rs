@@ -37,6 +37,50 @@ impl RotationInfo {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct SimpleRotateBuilder {
+    lock_file_name: String,
+    max_file_size_bytes: usize,
+    output_file_name: String,
+    max_output_files: usize,
+}
+
+impl SimpleRotateBuilder {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn lock_file_name(&mut self, lock_file_name: String) -> &mut Self {
+        self.lock_file_name = lock_file_name;
+        self
+    }
+
+    pub fn max_file_size_bytes(&mut self, max_file_size_bytes: usize) -> &mut Self {
+        self.max_file_size_bytes = max_file_size_bytes;
+        self
+    }
+
+    pub fn output_file_name(&mut self, output_file_name: String) -> &mut Self {
+        self.output_file_name = output_file_name;
+        self
+    }
+
+    pub fn max_output_files(&mut self, max_output_files: usize) -> &mut Self {
+        self.max_output_files = max_output_files;
+        self
+    }
+
+    pub fn build(&self) -> SimpleRotate {
+        debug!("SimpleRotateBuilder::build self = {:?}", self);
+        SimpleRotate::new(
+            &self.lock_file_name,
+            self.max_file_size_bytes,
+            &self.output_file_name,
+            self.max_output_files,
+        )
+    }
+}
+
 pub struct SimpleRotate {
     lock_file_name: String,
     max_file_size_bytes: usize,
@@ -45,14 +89,13 @@ pub struct SimpleRotate {
 }
 
 impl SimpleRotate {
-    pub fn new(
+    fn new(
         lock_file_name: &str,
         max_file_size_bytes: usize,
         output_file_name: &str,
         max_output_files: usize,
     ) -> Self {
-        let rotation_info_list =
-            SimpleRotate::rotation_info_list(output_file_name, max_output_files);
+        let rotation_info_list = Self::rotation_info_list(output_file_name, max_output_files);
         debug!("rotation_info_list = {:?}", rotation_info_list);
 
         Self {
