@@ -12,9 +12,9 @@ fn main() -> std::io::Result<()> {
     }
 
     let simple_rotate = simplerotate::SimpleRotateBuilder::new()
-        .lock_file_name("lock".to_string())
+        .lock_file_name("lock")
         .max_file_size_bytes(1 * 1024 * 1024)
-        .output_file_name("output".to_string())
+        .output_file_name("output")
         .max_output_files(10)
         .build();
 

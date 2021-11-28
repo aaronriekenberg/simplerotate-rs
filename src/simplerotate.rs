@@ -50,8 +50,8 @@ impl SimpleRotateBuilder {
         Default::default()
     }
 
-    pub fn lock_file_name(&mut self, lock_file_name: String) -> &mut Self {
-        self.lock_file_name = lock_file_name;
+    pub fn lock_file_name(&mut self, lock_file_name: &str) -> &mut Self {
+        self.lock_file_name = lock_file_name.to_string();
         self
     }
 
@@ -60,8 +60,8 @@ impl SimpleRotateBuilder {
         self
     }
 
-    pub fn output_file_name(&mut self, output_file_name: String) -> &mut Self {
-        self.output_file_name = output_file_name;
+    pub fn output_file_name(&mut self, output_file_name: &str) -> &mut Self {
+        self.output_file_name = output_file_name.to_string();
         self
     }
 
